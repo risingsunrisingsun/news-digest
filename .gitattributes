@@ -1,0 +1,11 @@
+# 기본은 git 판단에 맡기되, 리눅스 러너에서 실행되는 파일은 반드시 LF 로.
+# CRLF 로 체크아웃되면 bash 가 `\r: command not found` 로 죽는다.
+* text=auto
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.ts   text eol=lf
+
+# 기계가 생성하는 상태 파일. diff 가 의미 없고 매 실행마다 통째로 바뀐다.
+archive.json  -diff linguist-generated
+state.json    -diff linguist-generated
+pending.json  -diff linguist-generated

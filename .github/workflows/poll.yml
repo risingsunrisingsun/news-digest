@@ -1,0 +1,56 @@
+name: poll
+
+# 검토 DM 발송과 명령 수신. 승인 대기 초안이 있을 때만 할 일이 있으므로
+# 월요일 창에서만 돈다. Claude 루틴이 월 07:00 KST 에 초안을 밀어넣으면,
+# 08:00 KST 첫 폴링이 dmSent:false 를 보고 검토 DM 을 보낸다.
+#
+# 창을 24시간으로 잡은 이유는 README 참고 — 그날 저녁이나 다음 날 아침에
+# 검토하는 경우가 많은데, 창이 좁으면 명령을 보내도 아무 반응이 없다.
+on:
+  schedule:
+    # 월 08:00~08:59 KST  (일 23:00~23:59 UTC)
+    - cron: '*/30 23 * * 0'
+    # 월 09:00 ~ 화 07:30 KST  (월 00:00~22:30 UTC)
+    - cron: '*/30 0-22 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: news-digest-state
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 초안이 없으면 텔레그램을 부를 이유가 없다. 대기 중인 주가 아니면
+      # 여기서 끝나므로 창 안의 나머지 실행은 15초짜리 no-op 이 된다.
+      - id: gate
+        run: |
+          if [ -f pending.json ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "승인 대기 초안 없음 — 건너뜁니다."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.gate.outputs.go == 'true'
+        with:
+          bun-version: latest
+
+      - name: 검토 DM 발송 및 명령 처리
+        if: steps.gate.outputs.go == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
+        run: bun digest.ts --poll
+
+      - name: 커밋
+        if: steps.gate.outputs.go == 'true'
+        run: bash ./.github/push-state.sh "poll" state.json pending.json

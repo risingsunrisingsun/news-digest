@@ -1,0 +1,21 @@
+{
+  "feeds": [
+    { "name": "한국대학신문", "url": "https://news.unn.net/rss/allArticle.xml" },
+    { "name": "교수신문", "url": "https://www.kyosu.net/rss/allArticle.xml" },
+    { "name": "베리타스알파", "url": "https://www.veritas-a.com/rss/allArticle.xml" }
+  ],
+
+  "lookbackDays": 7,
+  "archiveRetentionDays": 30,
+  "maxItemsToModel": 150,
+  "maxArticlesInDigest": 15,
+
+  "keywords": [
+    "대학", "고등교육", "입시", "입학", "수시", "정시", "학종", "수능",
+    "유학생", "외국인", "국제화", "글로벌",
+    "등록금", "정원", "학과", "교육부", "총장", "학령인구",
+    "평가", "순위", "인증", "재정지원", "글로컬", "라이즈", "RISE"
+  ],
+
+  "model": "sonnet"
+}
