@@ -9,7 +9,7 @@
       "link": "https://news.unn.net/news/articleView.html?idxno=598238",
       "source": "한국대학신문",
       "opinion": null,
-      "dropped": false
+      "dropped": true
     },
     {
       "title": "거국련 회장 \"서울대 10개 만들기 아닌 '서울대 1개' 연합형태로 가야\"",
@@ -57,7 +57,7 @@
       "link": "https://www.veritas-a.com/news/articleView.html?idxno=630515",
       "source": "베리타스알파",
       "opinion": null,
-      "dropped": false
+      "dropped": true
     },
     {
       "title": "[2027정시] 상위15개대 무전공(유형1) 입결 분석…서울대·고대·경희대·인하대 '평균 이상'",
@@ -73,7 +73,7 @@
       "link": "https://www.veritas-a.com/news/articleView.html?idxno=630478",
       "source": "베리타스알파",
       "opinion": null,
-      "dropped": false
+      "dropped": true
     },
     {
       "title": "전북대, THE 세계대학평가 순위 '껑충'…세계 600위권 진입",
