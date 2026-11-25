@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>HigherEd review DM command polling (Mon only)</Description>
+    <Description>고등교육 뉴스 검토 DM 명령 처리 (30분 간격, 월 08:00~화 08:00)</Description>
     <URI>\HigherEd-News-Poll</URI>
   </RegistrationInfo>
   <Principals>
@@ -11,11 +11,11 @@
     </Principal>
   </Principals>
   <Settings>
-    <DisallowStartIfOnBatteries>true</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <Enabled>false</Enabled>
     <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <StartWhenAvailable>true</StartWhenAvailable>
     <IdleSettings>
       <Duration>PT10M</Duration>
       <WaitTimeout>PT1H</WaitTimeout>
@@ -26,10 +26,10 @@
   </Settings>
   <Triggers>
     <CalendarTrigger>
-      <StartBoundary>2026-07-22T08:00:00+09:00</StartBoundary>
+      <StartBoundary>2026-09-01T08:00:00+09:00</StartBoundary>
       <Repetition>
-        <Interval>PT5M</Interval>
-        <Duration>PT12H</Duration>
+        <Interval>PT30M</Interval>
+        <Duration>P1D</Duration>
         <StopAtDurationEnd>true</StopAtDurationEnd>
       </Repetition>
       <ScheduleByWeek>
@@ -43,7 +43,7 @@
   <Actions Context="Author">
     <Exec>
       <Command>powershell.exe</Command>
-      <Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\hufs\rasun\news-digest\run.ps1" -Poll</Arguments>
+      <Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\hufs\rasun\0 개인문서\1 news-digest\run.ps1" -Poll</Arguments>
     </Exec>
   </Actions>
 </Task>

@@ -11,8 +11,9 @@
     </Principal>
   </Principals>
   <Settings>
-    <DisallowStartIfOnBatteries>true</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <Enabled>false</Enabled>
     <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
     <StartWhenAvailable>true</StartWhenAvailable>
@@ -25,19 +26,23 @@
     <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
   </Settings>
   <Triggers>
-    <TimeTrigger>
-      <StartBoundary>2026-07-22T00:00:00+09:00</StartBoundary>
-      <Repetition>
-        <Interval>PT3H</Interval>
-        <Duration>P3650D</Duration>
-        <StopAtDurationEnd>true</StopAtDurationEnd>
-      </Repetition>
-    </TimeTrigger>
+    <CalendarTrigger>
+      <StartBoundary>2026-09-01T06:00:00+09:00</StartBoundary>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+    <CalendarTrigger>
+      <StartBoundary>2026-09-01T18:00:00+09:00</StartBoundary>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
   </Triggers>
   <Actions Context="Author">
     <Exec>
       <Command>powershell.exe</Command>
-      <Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\hufs\rasun\news-digest\run.ps1" -Collect</Arguments>
+      <Arguments>-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Users\hufs\rasun\0 개인문서\1 news-digest\run.ps1" -Collect</Arguments>
     </Exec>
   </Actions>
 </Task>
