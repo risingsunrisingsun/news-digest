@@ -6,10 +6,12 @@
  * (베리타스알파는 약 2.4시간). 주 1회만 수집하면 대부분을 놓치므로
  * 수집(자주)과 게시(주 1회)를 분리한다.
  *
- * 게시는 항상 본인 승인을 거친다. 초안을 DM 으로 보내고, DM 으로 의견을 받아
- * 기사 밑에 붙인 뒤, "게시" 라고 답해야만 채널에 올라간다.
+ * 게시는 항상 본인 승인을 거친다. 클라우드 경로에서는 Claude 앱의 루틴 세션에서
+ * 대화로 검토·수정하고 "게시" 라고 해야만 채널에 올라간다 (--sync).
+ * 로컬 폴백 경로는 예전처럼 텔레그램 DM 으로 검토한다 (--draft, --poll).
  *
  *   bun digest.ts --collect    피드 수집 → archive.json 누적 (LLM 호출 없음)
+ *   bun digest.ts --sync       pending.json 을 보고 알림 DM 발송 또는 승인분 게시
  *   bun digest.ts --draft      수집 + 요약 → 초안 저장 + 검토 DM 발송
  *   bun digest.ts --poll       DM 명령 처리 (의견 입력 / 삭제 / 게시 / 취소)
  *   bun digest.ts --dry-run    초안 생성까지 하되 DM 을 보내지 않고 콘솔 출력
@@ -49,6 +51,11 @@ const DRY_RUN = has('--dry-run')
 //   --summaries  <파일>  에이전트가 만든 요약으로 pending.json 만 쓴다 (DM 은 poll 이)
 const CANDIDATES_OUT = argValue('--candidates')
 const SUMMARIES_IN = argValue('--summaries')
+//   --review-url <URL>   --summaries 와 함께. 알림 DM 에 넣을 검토 세션 링크
+const REVIEW_URL = argValue('--review-url')
+// 검토는 Claude 앱의 루틴 세션에서 하고, 그 세션이 pending.json 을 push 하면
+// review 워크플로가 이 모드를 돌린다. 알림 DM 발송 또는 승인된 초안 게시.
+const SYNC = has('--sync')
 
 const TELEGRAM_LIMIT = 4096
 const NO_ITEMS = 'NO_ITEMS'
@@ -85,6 +92,11 @@ type Pending = {
   // 로컬 실행(draft())은 자기가 DM 을 보내므로 dmSent: true 로 쓴다.
   dmSent?: boolean
   staleReplaced?: boolean
+  // Claude 앱 검토 경로. 사용자가 세션에서 "게시" 라고 했을 때만 세션이
+  // approved:true 로 push 하고, --sync 가 그걸 보고 채널에 올린다.
+  reviewUrl?: string
+  approved?: boolean
+  approvedAt?: string
 }
 type State = {
   postedLinks: string[]
@@ -515,7 +527,8 @@ async function draft(cfg: Config, token: string, adminId: string): Promise<void>
 //   1) 루틴: --candidates  → 수집 + 후보/지시문 파일로 출력
 //   2) 루틴: 에이전트가 직접 읽고 요약해서 summaries.json 작성
 //   3) 루틴: --summaries   → pending.json (dmSent:false) 작성 후 push
-//   4) Actions --poll      → dmSent:false 를 보고 검토 DM 발송
+//   4) Actions --sync      → push 이벤트로 즉시 실행, 알림 DM 발송
+//   5) 사용자가 루틴 세션에서 수정·"게시" → 세션이 push → --sync 가 게시
 
 /** 1단계. 수집·필터 결과와 요약 지시문을 한 파일에 담아 에이전트에게 넘긴다. */
 async function writeCandidates(cfg: Config, outPath: string): Promise<void> {
@@ -554,8 +567,70 @@ async function draftFromSummaries(cfg: Config, inPath: string): Promise<void> {
     candidateLinks: items.map(it => it.link),
     dmSent: false,
     staleReplaced: Boolean(stale),
+    ...(REVIEW_URL ? { reviewUrl: REVIEW_URL } : {}),
   } satisfies Pending)
-  log(`초안 ${articles.length}건 생성. 검토 DM 은 다음 폴링이 보냅니다.`)
+  log(`초안 ${articles.length}건 생성. push 하면 review 워크플로가 알림 DM 을 보냅니다.`)
+}
+
+// ── Claude 앱 검토 경로 ─────────────────────────────────────────────────────
+// 검토·수정은 Claude 앱에서 루틴 세션과 대화로 한다. 세션이 pending.json 을
+// push 할 때마다 review 워크플로(push 이벤트)가 --sync 를 돌린다. 예약 실행이
+// 아니라서 GitHub 이 건너뛰지 않고, push 후 1분 안팎에 끝난다.
+//   approved:true  → 채널 게시
+//   dmSent:false   → 텔레그램으로 "초안 준비됨 + 세션 링크" 알림 한 통
+//   그 외          → 수정 중. 할 일 없음
+// 봇 토큰은 여전히 GitHub Secrets 에만 있다. 세션은 git push 만 한다.
+
+/** 알림 DM. 검토 자체는 Claude 앱에서 하므로 제목만 보여 준다. */
+function renderNotice(p: Pending): string {
+  const live = p.articles.filter(a => !a.dropped)
+  const out = [
+    `<b>📝 주간 브리핑 초안 준비됨</b>`,
+    `<i>${fmtDate(p.from)} ~ ${fmtDate(p.to)} · ${live.length}건</i>`,
+    '',
+    ...live.map((a, i) => `${i + 1}. ${esc(a.title)}`),
+    '',
+    p.reviewUrl
+      ? `<a href="${esc(p.reviewUrl)}">Claude 앱에서 검토하기</a>`
+      : 'Claude 앱 → Code 에서 「고등교육 뉴스 주간 초안」 최신 세션을 여세요.',
+    '<i>세션에서 수정을 지시하고 "게시" 라고 하면 채널에 올라갑니다. 이 봇에 답장해도 처리되지 않습니다.</i>',
+  ]
+  return out.join('\n')
+}
+
+async function sync(token: string, channelId: string, adminId: string): Promise<void> {
+  if (!existsSync(PENDING_PATH)) {
+    log('pending.json 없음 — 이미 게시했거나 폐기한 초안입니다.')
+    return
+  }
+  // readJson 은 깨진 파일을 조용히 기본값으로 바꾼다. 세션이 손으로 고친 파일이
+  // 깨졌다면 알림으로 드러나야 하므로 여기서는 직접 읽고 실패하면 던진다.
+  let p: Pending
+  try {
+    p = JSON.parse(await readFile(PENDING_PATH, 'utf8'))
+  } catch (e) {
+    throw new Error(`pending.json 이 올바른 JSON 이 아닙니다: ${e instanceof Error ? e.message : e}`)
+  }
+  if (!Array.isArray(p.articles) || p.articles.some(a => !a?.title || !a?.link)) {
+    throw new Error('pending.json 의 articles 형식이 올바르지 않습니다 (title·link 누락).')
+  }
+
+  if (p.approved === true) {
+    log(`승인 확인 (${p.approvedAt ?? '시각 미기록'}) — 게시합니다.`)
+    await publish(token, channelId, adminId)
+    return
+  }
+  if (p.dmSent === false) {
+    if (p.staleReplaced) {
+      await send(token, adminId, `<i>지난주 초안이 승인되지 않아 폐기하고 새 초안으로 교체했습니다.</i>`)
+    }
+    await send(token, adminId, renderNotice(p))
+    p.dmSent = true
+    await writeJson(PENDING_PATH, p)
+    log(`알림 DM 발송 완료 (${p.articles.length}건). Claude 앱 검토 대기 중.`)
+    return
+  }
+  log('검토 중인 초안 — 승인 전이라 할 일이 없습니다.')
 }
 
 // ── 게시 ────────────────────────────────────────────────────────────────────
@@ -793,6 +868,10 @@ async function main(): Promise<void> {
   const channelId = DRY_RUN ? (process.env.TELEGRAM_CHANNEL_ID ?? '') : requireEnv('TELEGRAM_CHANNEL_ID')
   const adminId = DRY_RUN ? (process.env.TELEGRAM_ADMIN_ID ?? '') : requireEnv('TELEGRAM_ADMIN_ID')
 
+  if (SYNC) {
+    await sync(token, channelId, adminId)
+    return
+  }
   if (POLL) {
     await poll(token, channelId, adminId)
     return
@@ -824,7 +903,7 @@ async function notifyFailure(message: string): Promise<void> {
       Date.now() - Date.parse(state.lastErrorAt) < 6 * 3_600_000
     if (repeat) return
 
-    const mode = COLLECT_ONLY ? '수집' : POLL ? '명령 처리' : CHECK ? '연결 확인'
+    const mode = COLLECT_ONLY ? '수집' : SYNC ? '검토 동기화' : POLL ? '명령 처리' : CHECK ? '연결 확인'
       : CANDIDATES_OUT ? '후보 추출' : SUMMARIES_IN ? '초안 작성' : '초안 생성'
     await send(token, adminId, `⚠️ <b>${mode} 실패</b>\n<code>${esc(message.slice(0, 500))}</code>`)
     await mutateState(s => {
